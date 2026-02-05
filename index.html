@@ -2252,14 +2252,24 @@
             const angleSlice = (2 * Math.PI) / radarPoints.length;
             const rScale = d3.scaleLinear().domain([0, 1]).range([0, radius]);
             
-            // Draw grid circles
-            const levels = 5;
+            // Draw grid circles with labeled rings (10%, 20%, ...)
+            const levels = 10; // 10 rings for 10% increments
             for (let i = 1; i <= levels; i++) {
+                const r = radius * i / levels;
                 mainG.append('circle')
-                    .attr('r', radius * i / levels)
+                    .attr('r', r)
                     .attr('fill', 'none')
-                    .attr('stroke', '#ddd')
+                    .attr('stroke', '#e6e6e6')
                     .attr('stroke-dasharray', '3,3');
+                // Label each ring along the top axis
+                mainG.append('text')
+                    .attr('x', 0)
+                    .attr('y', -r)
+                    .attr('dy', -2)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '10px')
+                    .style('fill', '#666')
+                    .text(`${i * 10}%`);
             }
             
             // Draw axis lines and labels
@@ -2281,34 +2291,49 @@
                     .text(d.label);
             });
             
-            // Draw radar area
+            // Remove filled polygon to avoid visual mixing; keep thin outline if needed
             const line = d3.lineRadial()
                 .radius(d => rScale(d.ratio))
                 .angle((d, i) => i * angleSlice)
                 .curve(d3.curveLinearClosed);
-            
+            // Optional outline (very light)
             mainG.append('path')
                 .datum(radarPoints)
-                .attr('class', 'radar-area')
                 .attr('d', line)
-                .attr('fill', '#e74c3c')
-                .attr('stroke', '#c0392b')
-                .attr('fill-opacity', 0.4);
+                .attr('fill', 'none')
+                .attr('stroke', '#f3a29a')
+                .attr('stroke-width', 1);
             
-            // Draw points
+            // Draw points with small jitter and smaller radius to avoid clutter
+            function jitterForLabel(label) {
+                // Deterministic small jitter based on label hash
+                let h = 0;
+                for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0;
+                const rand = (h % 1000) / 1000; // 0..1
+                return (rand - 0.5) * angleSlice * 0.18; // ± ~9% of slice
+            }
+
+            // Color points by dimension for clarity
+            const dimColor = d3.scaleOrdinal()
+                .domain(dimensions)
+                .range(['#e74c3c', '#3498db', '#2ecc71']);
+
             radarPoints.forEach((d, i) => {
-                const angle = angleSlice * i - Math.PI / 2;
-                const px = rScale(d.ratio) * Math.cos(angle);
-                const py = rScale(d.ratio) * Math.sin(angle);
-                
+                const angleBase = angleSlice * i - Math.PI / 2;
+                const angle = angleBase + jitterForLabel(d.label);
+                const jitterRadial = radius * 0.015; // small radial jitter
+                const r = rScale(d.ratio) + ((i % 2 === 0) ? jitterRadial : -jitterRadial);
+                const px = r * Math.cos(angle);
+                const py = r * Math.sin(angle);
+
                 mainG.append('circle')
                     .attr('cx', px)
                     .attr('cy', py)
-                    // slightly larger points for better visibility
-                    .attr('r', 7)
-                    .attr('fill', '#e74c3c')
+                    .attr('r', 4)
+                    .attr('fill', dimColor(d.dimension))
+                    .attr('fill-opacity', 0.7)
                     .attr('stroke', 'white')
-                    .attr('stroke-width', 2)
+                    .attr('stroke-width', 1.5)
                     .on('mouseover', (event) => {
                         showTooltip(event, `
                             <strong>${d.label}</strong> (${d.dimension})<br>
@@ -2318,6 +2343,26 @@
                     })
                     .on('mouseout', hideTooltip);
             });
+
+            // Legend for dimensions
+            const legend = radarSvg.append('g')
+                .attr('class', 'radar-legend')
+                .attr('transform', `translate(${width - 140}, 20)`);
+            const legendItems = legend.selectAll('.legend-item')
+                .data(dimensions)
+                .join('g')
+                .attr('class', 'legend-item')
+                .attr('transform', (d, i) => `translate(0, ${i * 18})`);
+            legendItems.append('circle')
+                .attr('r', 5)
+                .attr('cx', 5)
+                .attr('cy', 5)
+                .attr('fill', d => dimColor(d));
+            legendItems.append('text')
+                .attr('x', 16)
+                .attr('y', 9)
+                .style('font-size', '11px')
+                .text(d => d);
             
             // Center label
             mainG.append('text')
