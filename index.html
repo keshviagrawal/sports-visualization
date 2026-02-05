@@ -1,0 +1,2809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports LLM Prompt Visualization Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1.2.7/build/d3.layout.cloud.min.js"></script>
+    <style>
+        /* ==================== GLOBAL STYLES ==================== */
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --background-light: #f8f9fa;
+            --background-dark: #ecf0f1;
+            --text-color: #2c3e50;
+            --border-color: #bdc3c7;
+            
+            /* Colorblind-friendly palette */
+            --color-cricket: #0077BB;
+            --color-football: #33BBEE;
+            --color-basketball: #009988;
+            --color-tennis: #EE7733;
+            --color-tabletennis: #CC3311;
+            --color-mixed: #EE3377;
+            --color-other: #BBBBBB;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-light);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        /* ==================== HEADER ==================== */
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .dashboard-header h1 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+        
+        .dashboard-header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+        
+        /* ==================== FILTER BAR ==================== */
+        .filter-bar {
+            background: white;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        .filter-bar h3 {
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .filter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-start;
+        }
+        
+        .filter-group {
+            position: relative;
+            min-width: 150px;
+        }
+        
+        .filter-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .multi-select {
+            position: relative;
+        }
+        
+        .multi-select-button {
+            width: 100%;
+            padding: 8px 30px 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background: white;
+            cursor: pointer;
+            text-align: left;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .multi-select-button::after {
+            content: '▼';
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.7rem;
+            color: var(--text-color);
+        }
+        
+        .multi-select-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1001;
+            display: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        
+        .multi-select-dropdown.show {
+            display: block;
+        }
+        
+        .multi-select-option {
+            padding: 8px 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .multi-select-option:hover {
+            background: var(--background-dark);
+        }
+        
+        .multi-select-option input {
+            cursor: pointer;
+        }
+        
+        .reset-btn {
+            padding: 10px 20px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        .reset-btn:hover {
+            background: #c0392b;
+        }
+        
+        .filter-stats {
+            margin-top: 10px;
+            padding: 10px;
+            background: var(--background-dark);
+            border-radius: 5px;
+            font-size: 0.85rem;
+        }
+        
+        /* ==================== MAIN CONTAINER ==================== */
+        .main-container {
+            padding: 0 20px 20px;
+        }
+        
+        /* ==================== SECTION STYLES ==================== */
+        .viz-section {
+            background: white;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .section-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+        }
+        
+        .section-header h2 {
+            font-size: 1.3rem;
+            margin-bottom: 5px;
+        }
+        
+        .section-header p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+        
+        .section-content {
+            padding: 20px;
+        }
+        
+        .caption {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            font-style: italic;
+            margin-top: 15px;
+            padding: 10px;
+            background: var(--background-dark);
+            border-radius: 5px;
+            border-left: 3px solid var(--secondary-color);
+        }
+        
+        /* ==================== CHART GRID ==================== */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        .chart-container {
+            background: var(--background-light);
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 300px;
+        }
+        
+        .chart-container h4 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+            font-size: 0.95rem;
+        }
+        
+        /* ==================== SVG & CHART STYLES ==================== */
+        .axis text {
+            font-size: 11px;
+            fill: var(--text-color);
+        }
+        
+        .axis line, .axis path {
+            stroke: var(--border-color);
+        }
+        
+        .bar {
+            transition: opacity 0.3s;
+        }
+        
+        .bar:hover {
+            opacity: 0.8;
+        }
+        
+        /* ==================== TOOLTIP ==================== */
+        .tooltip {
+            position: absolute;
+            background: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            z-index: 2000;
+            max-width: 300px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        
+        .tooltip strong {
+            color: var(--secondary-color);
+        }
+        
+        /* ==================== WORD CLOUD ==================== */
+        .word-cloud-container {
+            min-height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .word {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .word:hover {
+            opacity: 0.7;
+        }
+        
+        /* ==================== SEMANTIC MAP ==================== */
+        .semantic-map-container {
+            position: relative;
+        }
+        
+        .semantic-map-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .semantic-map-controls button {
+            padding: 5px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            background: white;
+            cursor: pointer;
+        }
+        
+        .semantic-map-controls button:hover {
+            background: var(--background-dark);
+        }
+        
+        .point {
+            cursor: pointer;
+            transition: opacity 0.3s, r 0.3s;
+        }
+        
+        .point.faded {
+            opacity: 0.15;
+        }
+        
+        .point:hover {
+            stroke: #000;
+            stroke-width: 2;
+        }
+        
+        .brush .selection {
+            fill: var(--secondary-color);
+            fill-opacity: 0.2;
+            stroke: var(--secondary-color);
+        }
+        
+        /* ==================== CORRELATION EXPLORER ==================== */
+        .explorer-controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .explorer-controls select {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+        
+        .heatmap-cell {
+            transition: opacity 0.3s;
+        }
+        
+        .heatmap-cell:hover {
+            stroke: #000;
+            stroke-width: 2;
+        }
+        
+        /* ==================== SCATTER CHART ==================== */
+        .scatter-point {
+            transition: fill-opacity 0.2s, stroke-width 0.2s;
+        }
+        
+        #scatter-chart {
+            margin-top: 20px;
+            min-height: 350px;
+        }
+        
+        /* ==================== RADAR CHART ==================== */
+        .radar-axis {
+            stroke: var(--border-color);
+        }
+        
+        .radar-area {
+            fill-opacity: 0.3;
+            stroke-width: 2;
+        }
+        
+        .radar-area:hover {
+            fill-opacity: 0.5;
+        }
+        
+        /* ==================== SANKEY DIAGRAM ==================== */
+        .sankey-node rect {
+            cursor: pointer;
+        }
+        
+        .sankey-node rect:hover {
+            opacity: 0.8;
+        }
+        
+        .sankey-link {
+            fill: none;
+            stroke-opacity: 0.4;
+        }
+        
+        .sankey-link:hover {
+            stroke-opacity: 0.7;
+        }
+        
+        /* ==================== MODEL ANALYSIS ==================== */
+        .model-chart-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        /* ==================== LEGEND ==================== */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+            justify-content: center;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+        
+        /* ==================== RESPONSIVE ==================== */
+        @media (max-width: 768px) {
+            .filter-container {
+                flex-direction: column;
+            }
+            
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-header h1 {
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* ==================== LOADING ==================== */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: var(--text-color);
+        }
+        
+        .loading::after {
+            content: '';
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--secondary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+    
+    <!-- Header -->
+    <header class="dashboard-header">
+        <h1>🏆 Sports LLM Prompt Visualization Dashboard</h1>
+        <p>Interactive exploration of sports-related prompts for Large Language Models</p>
+    </header>
+    
+    <!-- Filter Bar -->
+    <!-- Compact filter bar: removed the "Global Filters" label and place the reset button inline to the right of the filter controls -->
+    <div class="filter-bar" style="padding:8px 12px; display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div class="filter-container" id="filter-container" style="flex:1; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+            <!-- Filters will be dynamically generated -->
+        </div>
+
+        <!-- Reset button inline with filter controls -->
+        <div style="display:flex; align-items:center;">
+            <button class="reset-btn" onclick="resetAllFilters()" style="height:34px; white-space:nowrap;">Reset Filters</button>
+        </div>
+
+        <!-- <div class="filter-stats" id="filter-stats">
+            Loading data...
+        </div> -->
+    </div>
+    
+    <!-- Main Content -->
+    <main class="main-container">
+        <!-- Section 1: Prompt Composition Overview -->
+        <section class="viz-section" id="section-composition">
+            <div class="section-header">
+                <h2>📊 Prompt Composition Overview</h2>
+                <p>Distribution of prompts across major categorical dimensions</p>
+            </div>
+            <div class="section-content">
+                <div class="chart-grid" id="composition-charts">
+                    <div class="loading">Loading visualizations</div>
+                </div>
+                <div class="caption">
+                    <strong>What this shows:</strong> Understanding the composition of sports prompts helps identify which sport domains, intent types, and complexity levels are most common. This reveals potential biases in the dataset and areas where LLMs may need more training data.
+                </div>
+            </div>
+        </section>
+        
+        <!-- Section 2: Word Cloud -->
+        <section class="viz-section" id="section-wordcloud">
+            <div class="section-header">
+                <h2>☁️ Dominant Concepts in Sports Prompts</h2>
+                <p>Keywords sized by frequency across filtered prompts</p>
+            </div>
+            <div class="section-content">
+                <div class="word-cloud-container" id="word-cloud">
+                    <div class="loading">Building word cloud</div>
+                </div>
+                <div class="caption">
+                    <strong>What this shows:</strong> The word cloud reveals the most frequently mentioned concepts in sports prompts. Larger words indicate higher frequency. This helps understand what aspects of sports (players, rules, statistics, strategies) users are most curious about.
+                </div>
+            </div>
+        </section>
+        
+        <!-- Section 3: Semantic Similarity Map removed -->
+        <!-- The semantic map visualization has been removed. -->
+        
+        <!-- Section 4: Correlation Explorer -->
+        <section class="viz-section" id="section-correlation">
+            <div class="section-header">
+                <h2>🔬 Explore Relationships Between Prompt Attributes</h2>
+                <p>Select dimensions to discover patterns and correlations</p>
+            </div>
+            <div class="section-content">
+                <div class="explorer-controls">
+                    <div>
+                        <label>X-Axis:</label>
+                        <select id="x-axis-select" onchange="updateCorrelationChart()"></select>
+                    </div>
+                    <div>
+                        <label>Y-Axis:</label>
+                        <select id="y-axis-select" onchange="updateCorrelationChart()"></select>
+                    </div>
+                    <div>
+                        <label>Color By:</label>
+                        <select id="color-select" onchange="updateCorrelationChart()"></select>
+                    </div>
+                </div>
+                <div id="correlation-chart">
+                    <div class="loading">Preparing correlation explorer</div>
+                </div>
+                <h4 style="margin-top: 30px; text-align: center; color: var(--primary-color);">Jittered Scatterplot (Individual Prompts)</h4>
+                <div id="scatter-chart">
+                    <div class="loading">Preparing scatterplot</div>
+                </div>
+                <div class="caption">
+                    <strong>What this shows:</strong> The heatmap (above) shows aggregate frequency — darker cells mean more prompts. The scatterplot (below) shows individual prompts with jitter to reveal micro-patterns and outliers. Color is controlled by the Color selector.
+                </div>
+            </div>
+        </section>
+        
+        <!-- Section 5: Hallucination Risk Radar -->
+        <section class="viz-section" id="section-radar">
+            <div class="section-header">
+                <h2>⚠️ Hallucination Risk Radar</h2>
+                <p>Which prompt types are most risky for LLM responses?</p>
+            </div>
+            <div class="section-content">
+                <div id="radar-chart">
+                    <div class="loading">Calculating risk distributions</div>
+                </div>
+                <div class="caption">
+                    <strong>What this shows:</strong> The radar chart shows how high hallucination risk prompts distribute across different intents, reasoning levels, and complexities. Peaks indicate prompt types where LLMs are more likely to generate inaccurate or fabricated information — critical for sports analysis and predictions.
+                </div>
+            </div>
+        </section>
+        
+        <!-- Section 6: Sankey Flow -->
+        <section class="viz-section" id="section-sankey">
+            <div class="section-header">
+                <h2>🔄 Prompt Pipeline Flow (Sankey Diagram)</h2>
+                <p>Flow from Intent → Reasoning Level → Hallucination Risk</p>
+            </div>
+            <div class="section-content">
+                <div id="sankey-chart">
+                    <div class="loading">Building flow diagram</div>
+                </div>
+                <div class="caption">
+                    <strong>What this shows:</strong> This Sankey diagram traces how prompts flow from their intent (what users want) through reasoning level (cognitive complexity) to hallucination risk. Thicker paths indicate more prompts following that route. This helps identify which pathways lead to risky responses.
+                </div>
+            </div>
+        </section>
+        
+        <!-- Section 7: Model Performance Analysis -->
+        <section class="viz-section" id="section-models">
+            <div class="section-header">
+                <h2>🤖 Model Response Quality Analysis</h2>
+                <p>Helpfulness ratings and performance across different models</p>
+            </div>
+            <div class="section-content">
+                <div class="model-chart-container" id="model-charts">
+                    <div class="loading">Analyzing model responses</div>
+                </div>
+                <div class="caption">
+                    <strong>What this shows:</strong> Analysis of how different LLM models perform on sports-related prompts. Helpfulness ratings reveal which models provide the most useful responses for sports questions, helping users choose the right model for their needs.
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <script>
+        // ==================== GLOBAL STATE ====================
+        let allData = [];
+        let filteredData = [];
+        let activeFilters = {};
+        
+        // Performance: Precomputed index maps for fast filtering
+        const filterIndexMaps = {}; // { filterKey: { value: Set<dataIndex> } }
+        let cachedAggregations = {}; // Cache for expensive computations
+        
+        // Color scales - colorblind friendly
+        const sportColors = {
+            'cricket': '#0077BB',
+            'football': '#33BBEE',
+            'basketball': '#009988',
+            'tennis': '#EE7733',
+            'table tennis': '#CC3311',
+            'mixed': '#EE3377',
+            'other': '#BBBBBB'
+        };
+        
+        const categoricalColors = d3.schemeTableau10;
+        
+        // Filter configuration
+        const filterConfig = [
+            { key: 'primary_sport', label: 'Primary Sport', path: d => d.analysis?.primary_sport },
+            { key: 'sport_category', label: 'Sport Category', path: d => d.analysis?.sport_category },
+            { key: 'sport_level', label: 'Sport Level', path: d => d.analysis?.sport_level },
+            { key: 'intent', label: 'Intent', path: d => d.analysis?.intent },
+            { key: 'reasoning_level', label: 'Reasoning Level', path: d => d.analysis?.reasoning_level },
+            { key: 'complexity', label: 'Complexity', path: d => d.analysis?.complexity },
+            { key: 'hallucination_risk', label: 'Hallucination Risk', path: d => d.analysis?.hallucination_risk },
+            { key: 'prompt_clarity', label: 'Prompt Clarity', path: d => d.analysis?.prompt_clarity }
+        ];
+        
+        // Categorical fields for correlation explorer
+        const categoricalFields = [
+            { key: 'primary_sport', label: 'Primary Sport' },
+            { key: 'sport_category', label: 'Sport Category' },
+            { key: 'sport_level', label: 'Sport Level' },
+            { key: 'intent', label: 'Intent' },
+            { key: 'reasoning_level', label: 'Reasoning Level' },
+            { key: 'complexity', label: 'Complexity' },
+            { key: 'hallucination_risk', label: 'Hallucination Risk' },
+            { key: 'prompt_clarity', label: 'Prompt Clarity' },
+            { key: 'sentiment', label: 'Sentiment' },
+            { key: 'requires_external_knowledge', label: 'Requires External Knowledge' }
+        ];
+        
+        // ==================== TOOLTIP ====================
+        const tooltip = d3.select('#tooltip');
+        
+        function showTooltip(event, content) {
+            tooltip
+                .style('display', 'block')
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 10) + 'px')
+                .html(content);
+        }
+        
+        function hideTooltip() {
+            tooltip.style('display', 'none');
+        }
+        
+        // ==================== DATA LOADING ====================
+        async function loadData() {
+            try {
+                const response = await fetch('merged_119_labeled.jsonl');
+                const text = await response.text();
+                const lines = text.trim().split('\n');
+                
+                allData = lines.map((line, idx) => {
+                    try {
+                        const parsed = JSON.parse(line);
+                        parsed._id = idx;
+                        // Generate mock 2D embeddings for semantic map
+                        parsed._x = Math.random() * 100;
+                        parsed._y = Math.random() * 100;
+                        return parsed;
+                    } catch (e) {
+                        console.warn('Failed to parse line:', idx);
+                        return null;
+                    }
+                }).filter(d => d !== null);
+                
+                // Generate more meaningful embeddings based on attributes
+                generateSemanticEmbeddings();
+                
+                // Build filter index maps for O(1) filtering
+                buildFilterIndexMaps();
+                
+                // Pre-aggregate expensive computations
+                precomputeAggregations();
+                
+                filteredData = [...allData];
+                initializeFilters();
+                updateAllVisualizations();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('filter-stats').innerHTML = 
+                    `<span style="color: red;">Error loading data. Make sure merged_119_labeled.jsonl is in the same directory.</span>`;
+            }
+        }
+        
+        function generateSemanticEmbeddings() {
+            // Create meaningful 2D embeddings based on categorical attributes
+            const intentMap = {};
+            const sportMap = {};
+            
+            // Assign base positions by intent
+            const intents = [...new Set(allData.map(d => d.analysis?.intent).filter(Boolean))];
+            intents.forEach((intent, i) => {
+                const angle = (2 * Math.PI * i) / intents.length;
+                intentMap[intent] = { x: 50 + 30 * Math.cos(angle), y: 50 + 30 * Math.sin(angle) };
+            });
+            
+            // Assign offsets by sport
+            const sports = [...new Set(allData.map(d => d.analysis?.primary_sport).filter(Boolean))];
+            sports.forEach((sport, i) => {
+                sportMap[sport] = { dx: (i - sports.length/2) * 3, dy: (Math.random() - 0.5) * 10 };
+            });
+            
+            allData.forEach(d => {
+                const intent = d.analysis?.intent;
+                const sport = d.analysis?.primary_sport;
+                
+                if (intent && intentMap[intent]) {
+                    d._x = intentMap[intent].x + (Math.random() - 0.5) * 15;
+                    d._y = intentMap[intent].y + (Math.random() - 0.5) * 15;
+                    
+                    if (sport && sportMap[sport]) {
+                        d._x += sportMap[sport].dx;
+                        d._y += sportMap[sport].dy;
+                    }
+                }
+                
+                // Adjust by complexity
+                const complexity = d.analysis?.complexity;
+                if (complexity === 'complex') d._x += 5;
+                else if (complexity === 'simple') d._x -= 5;
+            });
+        }
+        
+        // ==================== FILTER INDEX MAPS ====================
+        function buildFilterIndexMaps() {
+            filterConfig.forEach(config => {
+                filterIndexMaps[config.key] = new Map();
+                
+                allData.forEach((d, idx) => {
+                    const value = config.path(d);
+                    if (value) {
+                        if (!filterIndexMaps[config.key].has(value)) {
+                            filterIndexMaps[config.key].set(value, new Set());
+                        }
+                        filterIndexMaps[config.key].get(value).add(idx);
+                    }
+                });
+            });
+        }
+        
+        // Fast bitmask-style filtering using index intersection
+        function computeFilteredIndices() {
+            let candidateIndices = null;
+            
+            for (const config of filterConfig) {
+                const activeValues = activeFilters[config.key];
+                const indexMap = filterIndexMaps[config.key];
+                
+                // Get all indices matching any active value for this filter
+                const matchingIndices = new Set();
+                for (const value of activeValues) {
+                    const indices = indexMap.get(value);
+                    if (indices) {
+                        for (const idx of indices) {
+                            matchingIndices.add(idx);
+                        }
+                    }
+                }
+                
+                // Also include items with null/undefined values (pass through)
+                allData.forEach((d, idx) => {
+                    if (!config.path(d)) matchingIndices.add(idx);
+                });
+                
+                // Intersect with candidates
+                if (candidateIndices === null) {
+                    candidateIndices = matchingIndices;
+                } else {
+                    const intersection = new Set();
+                    for (const idx of candidateIndices) {
+                        if (matchingIndices.has(idx)) intersection.add(idx);
+                    }
+                    candidateIndices = intersection;
+                }
+            }
+            
+            return candidateIndices || new Set();
+        }
+        
+        // ==================== PRE-AGGREGATIONS ====================
+        function precomputeAggregations() {
+            // Pre-compute keyword frequencies (expensive operation)
+            cachedAggregations.keywordCounts = {};
+            allData.forEach((d, idx) => {
+                // const keywords = d.analysis?.keywords || [];
+                // keywords.forEach(k => {
+                const keywords = Array.isArray(d.analysis?.keywords)
+                ? d.analysis.keywords
+                : [];
+
+                keywords.forEach(k => {
+                    if (!cachedAggregations.keywordCounts[k]) {
+                        cachedAggregations.keywordCounts[k] = { count: 0, indices: [] };
+                    }
+                    cachedAggregations.keywordCounts[k].count++;
+                    cachedAggregations.keywordCounts[k].indices.push(idx);
+                });
+            });
+            
+            // Pre-compute model ratings
+            cachedAggregations.modelRatings = {};
+            allData.forEach((d, idx) => {
+                if (!d.completions) return;
+                d.completions.forEach(comp => {
+                    const model = comp.model;
+                    if (!model) return;
+                    
+                    if (!cachedAggregations.modelRatings[model]) {
+                        cachedAggregations.modelRatings[model] = {
+                            helpfulness: [], honesty: [], truthfulness: [], overall: [],
+                            indices: []
+                        };
+                    }
+                    
+                    const r = cachedAggregations.modelRatings[model];
+                    r.indices.push(idx);
+                    
+                    const helpfulness = comp.annotations?.helpfulness?.Rating;
+                    const honesty = comp.annotations?.honesty?.Rating;
+                    const truthfulness = comp.annotations?.truthfulness?.Rating;
+                    const overall = comp.overall_score;
+                    
+                    if (helpfulness) r.helpfulness.push({ idx, val: +helpfulness });
+                    if (honesty) r.honesty.push({ idx, val: +honesty });
+                    if (truthfulness) r.truthfulness.push({ idx, val: +truthfulness });
+                    if (overall) r.overall.push({ idx, val: +overall });
+                });
+            });
+            
+            // Pre-compute hallucination risk by dimension
+            cachedAggregations.riskByDimension = {};
+            ['intent', 'reasoning_level', 'complexity'].forEach(dim => {
+                cachedAggregations.riskByDimension[dim] = {};
+                allData.forEach((d, idx) => {
+                    const val = d.analysis?.[dim];
+                    const risk = d.analysis?.hallucination_risk;
+                    if (!val) return;
+                    
+                    if (!cachedAggregations.riskByDimension[dim][val]) {
+                        cachedAggregations.riskByDimension[dim][val] = { total: 0, high: 0, indices: [] };
+                    }
+                    cachedAggregations.riskByDimension[dim][val].total++;
+                    cachedAggregations.riskByDimension[dim][val].indices.push(idx);
+                    if (risk === 'high') {
+                        cachedAggregations.riskByDimension[dim][val].high++;
+                    }
+                });
+            });
+        }
+        
+        // ==================== FILTER SYSTEM ====================
+        function initializeFilters() {
+            const container = document.getElementById('filter-container');
+            container.innerHTML = '';
+            
+            filterConfig.forEach(config => {
+                const values = [...new Set(allData.map(config.path).filter(Boolean))].sort();
+                activeFilters[config.key] = new Set(values);
+                
+                const group = document.createElement('div');
+                group.className = 'filter-group';
+                group.innerHTML = `
+                    <label>${config.label}</label>
+                    <div class="multi-select" id="filter-${config.key}">
+                        <div class="multi-select-button" onclick="toggleDropdown('${config.key}')">
+                            All (${values.length})
+                        </div>
+                        <div class="multi-select-dropdown" id="dropdown-${config.key}">
+                            ${values.map(v => `
+                                <label class="multi-select-option">
+                                    <input type="checkbox" checked 
+                                        onchange="toggleFilterValue('${config.key}', '${v}')" 
+                                        data-value="${v}">
+                                    ${v}
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(group);
+            });
+            
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.multi-select')) {
+                    document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
+                }
+            });
+        }
+        
+        function toggleDropdown(key) {
+            event.stopPropagation();
+            const dropdown = document.getElementById(`dropdown-${key}`);
+            const wasOpen = dropdown.classList.contains('show');
+            
+            document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
+            
+            if (!wasOpen) {
+                dropdown.classList.add('show');
+            }
+        }
+        
+        function toggleFilterValue(key, value) {
+            if (activeFilters[key].has(value)) {
+                activeFilters[key].delete(value);
+            } else {
+                activeFilters[key].add(value);
+            }
+            applyFilters();
+        }
+        
+        function applyFilters() {
+            // Use fast index-based filtering instead of full scan
+            const filteredIndices = computeFilteredIndices();
+            filteredData = allData.filter((_, idx) => filteredIndices.has(idx));
+            
+            // Invalidate cached filtered aggregations
+            cachedAggregations.filteredKeywords = null;
+            cachedAggregations.filteredModelStats = null;
+            cachedAggregations.filteredRiskData = null;
+            
+            // Update filter button labels
+            filterConfig.forEach(config => {
+                const btn = document.querySelector(`#filter-${config.key} .multi-select-button`);
+                const allValues = [...new Set(allData.map(config.path).filter(Boolean))];
+                const selectedCount = activeFilters[config.key].size;
+                
+                if (selectedCount === allValues.length) {
+                    btn.textContent = `All (${allValues.length})`;
+                } else if (selectedCount === 0) {
+                    btn.textContent = 'None';
+                } else if (selectedCount <= 2) {
+                    btn.textContent = [...activeFilters[config.key]].join(', ');
+                } else {
+                    btn.textContent = `${selectedCount} selected`;
+                }
+            });
+            
+            updateAllVisualizations();
+        }
+        
+        function resetAllFilters() {
+            filterConfig.forEach(config => {
+                const values = [...new Set(allData.map(config.path).filter(Boolean))];
+                activeFilters[config.key] = new Set(values);
+                
+                // Check all checkboxes
+                document.querySelectorAll(`#dropdown-${config.key} input`).forEach(cb => {
+                    cb.checked = true;
+                });
+            });
+            applyFilters();
+        }
+        
+        function updateFilterStats() {
+            const total = allData.length;
+            const filtered = filteredData.length;
+            const pct = ((filtered / total) * 100).toFixed(1);
+            
+            // document.getElementById('filter-stats').innerHTML = `
+            //     <strong>${filtered}</strong> of <strong>${total}</strong> prompts displayed (${pct}%) | 
+            //     <strong>${[...new Set(filteredData.flatMap(d => d.analysis?.keywords || []))].length}</strong> unique keywords
+            // `;
+        }
+        
+        // ==================== RENDERING SCHEDULER ====================
+        const RenderScheduler = {
+            queue: [],
+            isRunning: false,
+            
+            schedule(tasks) {
+                this.queue = tasks;
+                if (!this.isRunning) this.run();
+            },
+            
+            run() {
+                this.isRunning = true;
+                const task = this.queue.shift();
+                if (!task) {
+                    this.isRunning = false;
+                    return;
+                }
+                
+                requestAnimationFrame(() => {
+                    const start = performance.now();
+                    task.fn();
+                    console.debug(`${task.name}: ${(performance.now() - start).toFixed(1)}ms`);
+                    
+                    // Use requestIdleCallback for low-priority tasks, setTimeout fallback
+                    if (this.queue.length > 0) {
+                        if (this.queue[0].priority === 'low' && 'requestIdleCallback' in window) {
+                            requestIdleCallback(() => this.run(), { timeout: 100 });
+                        } else {
+                            setTimeout(() => this.run(), 16);
+                        }
+                    } else {
+                        this.isRunning = false;
+                    }
+                });
+            }
+        };
+        
+        // ==================== UPDATE ALL VISUALIZATIONS ====================
+        function updateAllVisualizations() {
+            // Immediate: filter stats (fast)
+            updateFilterStats();
+            
+                // Schedule renders by priority
+            RenderScheduler.schedule([
+                { name: 'composition', fn: renderCompositionCharts, priority: 'high' },
+                { name: 'correlation', fn: renderCorrelationChart, priority: 'medium' },
+                { name: 'wordcloud', fn: renderWordCloud, priority: 'low' },
+                { name: 'radar', fn: renderRadarChart, priority: 'low' },
+                { name: 'sankey', fn: renderSankeyDiagram, priority: 'low' },
+                { name: 'models', fn: renderModelAnalysis, priority: 'low' }
+            ]);
+        }
+        
+        // ==================== COMPOSITION CHARTS ====================
+        function renderCompositionCharts() {
+            const container = document.getElementById('composition-charts');
+            container.innerHTML = '';
+            
+            // Bar charts
+            const barChartConfigs = [
+                { key: 'primary_sport', label: 'Primary Sport', path: d => d.analysis?.primary_sport },
+                { key: 'intent', label: 'Intent', path: d => d.analysis?.intent },
+                { key: 'reasoning_level', label: 'Reasoning Level', path: d => d.analysis?.reasoning_level },
+                { key: 'sport_level', label: 'Sport Level', path: d => d.analysis?.sport_level },
+                { key: 'hallucination_risk', label: 'Hallucination Risk', path: d => d.analysis?.hallucination_risk },
+                { key: 'complexity', label: 'Complexity', path: d => d.analysis?.complexity }
+            ];
+            
+            barChartConfigs.forEach(config => {
+                const div = document.createElement('div');
+                div.className = 'chart-container';
+                div.innerHTML = `<h4>${config.label}</h4><div id="bar-${config.key}"></div>`;
+                container.appendChild(div);
+                renderBarChart(`bar-${config.key}`, config.path, config.key);
+            });
+            
+            // Pie/donut charts
+            const pieChartConfigs = [
+                { key: 'sport_category', label: 'Sport Category', path: d => d.analysis?.sport_category },
+                { key: 'requires_external_knowledge', label: 'Requires External Knowledge', path: d => d.analysis?.requires_external_knowledge },
+                { key: 'sentiment', label: 'Sentiment', path: d => d.analysis?.sentiment }
+            ];
+            
+            pieChartConfigs.forEach(config => {
+                const div = document.createElement('div');
+                div.className = 'chart-container';
+                div.innerHTML = `<h4>${config.label}</h4><div id="pie-${config.key}"></div>`;
+                container.appendChild(div);
+                renderPieChart(`pie-${config.key}`, config.path);
+            });
+        }
+        
+        function renderBarChart(containerId, accessor, colorKey) {
+            const container = document.getElementById(containerId);
+            
+            // Aggregate data
+            const counts = d3.rollup(filteredData, v => v.length, accessor);
+            const data = Array.from(counts, ([key, value]) => ({ key: key || 'Unknown', value }))
+                .filter(d => d.key !== 'Unknown')
+                .sort((a, b) => b.value - a.value);
+            
+            if (data.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No data</p>';
+                return;
+            }
+            
+            // Dynamic margin based on label length
+            const maxLabelLen = d3.max(data, d => String(d.key).length) || 10;
+            const bottomMargin = Math.min(150, Math.max(80, maxLabelLen * 5));
+            
+            const margin = { top: 10, right: 20, bottom: bottomMargin, left: 50 };
+            const containerWidth = container.clientWidth || 300;
+            const width = Math.max(0, containerWidth - margin.left - margin.right);
+            const height = 250 - margin.top - margin.bottom;
+            
+            // Check for existing SVG or create new
+            let svg = d3.select(`#${containerId}`).select('svg');
+            let g, barsG;
+            
+            if (svg.empty()) {
+                container.innerHTML = '';
+                svg = d3.select(`#${containerId}`)
+                    .append('svg')
+                    .attr('width', containerWidth)
+                    .attr('height', height + margin.top + margin.bottom);
+                
+                // Add clip path to prevent bars from overflowing
+                svg.append('defs').append('clipPath')
+                    .attr('id', `clip-${containerId}`)
+                    .append('rect')
+                    .attr('width', width)
+                    .attr('height', height);
+                
+                g = svg.append('g')
+                    .attr('class', 'main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                g.append('g').attr('class', 'x-axis');
+                g.append('g').attr('class', 'y-axis');
+                barsG = g.append('g').attr('class', 'bars-g')
+                    .attr('clip-path', `url(#clip-${containerId})`);
+            } else {
+                svg.attr('width', containerWidth)
+                   .attr('height', height + margin.top + margin.bottom);
+                
+                svg.select(`#clip-${containerId} rect`)
+                    .attr('width', width)
+                    .attr('height', height);
+                
+                g = svg.select('.main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                    
+                barsG = g.select('.bars-g');
+                if (barsG.empty()) {
+                     barsG = g.append('g').attr('class', 'bars-g').attr('clip-path', `url(#clip-${containerId})`);
+                }
+            }
+            
+            const x = d3.scaleBand()
+                .domain(data.map(d => d.key))
+                .range([0, width])
+                .padding(0.2);
+            
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.value)])
+                .nice()
+                .range([height, 0]);
+            
+            // Color scale
+            const colorScale = colorKey === 'primary_sport' 
+                ? (d => sportColors[d] || '#999')
+                : d3.scaleOrdinal(categoricalColors);
+            
+            // Bars with d3.join pattern - render inside barsG
+            barsG.selectAll('.bar')
+                .data(data, d => d.key)
+                .join(
+                    enter => enter.append('rect')
+                        .attr('class', 'bar')
+                        .attr('x', d => x(d.key))
+                        .attr('width', x.bandwidth())
+                        .attr('y', height)
+                        .attr('height', 0)
+                        .attr('fill', d => colorScale(d.key))
+                        .on('mouseover', (event, d) => {
+                            const pct = ((d.value / filteredData.length) * 100).toFixed(1);
+                            showTooltip(event, `<strong>${d.key}</strong><br>Count: ${d.value}<br>Percentage: ${pct}%`);
+                        })
+                        .on('mouseout', hideTooltip)
+                        .call(enter => enter.transition().duration(300)
+                            .attr('y', d => y(d.value))
+                            .attr('height', d => height - y(d.value))),
+                    update => update
+                        .attr('x', d => x(d.key))
+                        .attr('width', x.bandwidth())
+                        .attr('fill', d => colorScale(d.key))
+                        .call(update => update.transition().duration(300)
+                            .attr('y', d => y(d.value))
+                            .attr('height', d => height - y(d.value))),
+                    exit => exit.transition().duration(200)
+                        .attr('height', 0)
+                        .attr('y', height)
+                        .remove()
+                );
+            
+            // X axis
+            g.select('.x-axis')
+                .attr('class', 'axis x-axis')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .style('text-anchor', 'end')
+                .attr('dx', '-.8em')
+                .attr('dy', '.15em');
+            
+            // Y axis
+            g.select('.y-axis')
+                .attr('class', 'axis y-axis')
+                .call(d3.axisLeft(y).ticks(5));
+        }
+        
+        function renderPieChart(containerId, accessor) {
+            const container = document.getElementById(containerId);
+            
+            const counts = d3.rollup(filteredData, v => v.length, accessor);
+            const data = Array.from(counts, ([key, value]) => ({ key: key || 'Unknown', value }))
+                .filter(d => d.key !== 'Unknown');
+            
+            if (data.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No data</p>';
+                return;
+            }
+            
+            const width = container.clientWidth;
+            const height = 250;
+            const radius = Math.min(width, height) / 2 - 30;
+            
+            // Check for existing SVG
+            let svg = d3.select(`#${containerId}`).select('svg');
+            let g;
+            
+            if (svg.empty()) {
+                container.innerHTML = '';
+                svg = d3.select(`#${containerId}`)
+                    .append('svg')
+                    .attr('width', width)
+                    .attr('height', height);
+                
+                g = svg.append('g')
+                    .attr('class', 'pie-g')
+                    .attr('transform', `translate(${width/2},${height/2})`);
+            } else {
+                svg.attr('width', width).attr('height', height);
+                g = svg.select('.pie-g')
+                    .attr('transform', `translate(${width/2},${height/2})`);
+            }
+            
+            const colorScale = d3.scaleOrdinal(categoricalColors);
+            
+            const pie = d3.pie()
+                .value(d => d.value)
+                .sort(null);
+            
+            const arc = d3.arc()
+                .innerRadius(radius * 0.5)
+                .outerRadius(radius);
+            
+            // Use d3.join for arcs
+            g.selectAll('.arc')
+                .data(pie(data), d => d.data.key)
+                .join(
+                    enter => enter.append('path')
+                        .attr('class', 'arc')
+                        .attr('fill', (d, i) => colorScale(i))
+                        .attr('stroke', 'white')
+                        .attr('stroke-width', 2)
+                        .on('mouseover', (event, d) => {
+                            const pct = ((d.data.value / filteredData.length) * 100).toFixed(1);
+                            showTooltip(event, `<strong>${d.data.key}</strong><br>Count: ${d.data.value}<br>Percentage: ${pct}%`);
+                        })
+                        .on('mouseout', hideTooltip)
+                        .each(function(d) { this._current = { startAngle: 0, endAngle: 0 }; })
+                        .call(enter => enter.transition().duration(300)
+                            .attrTween('d', function(d) {
+                                const interpolate = d3.interpolate(this._current, d);
+                                this._current = interpolate(1);
+                                return t => arc(interpolate(t));
+                            })),
+                    update => update
+                        .attr('fill', (d, i) => colorScale(i))
+                        .call(update => update.transition().duration(300)
+                            .attrTween('d', function(d) {
+                                const interpolate = d3.interpolate(this._current, d);
+                                this._current = interpolate(1);
+                                return t => arc(interpolate(t));
+                            })),
+                    exit => exit.transition().duration(200)
+                        .attrTween('d', function(d) {
+                            const interpolate = d3.interpolate(d, { startAngle: 0, endAngle: 0 });
+                            return t => arc(interpolate(t));
+                        })
+                        .remove()
+                );
+            
+            // Update legend
+            let legendContainer = d3.select(`#${containerId}`).select('.legend');
+            if (legendContainer.empty()) {
+                legendContainer = d3.select(`#${containerId}`).append('div').attr('class', 'legend');
+            }
+            
+            legendContainer.selectAll('.legend-item')
+                .data(data, d => d.key)
+                .join(
+                    enter => {
+                        const item = enter.append('div').attr('class', 'legend-item');
+                        item.append('div').attr('class', 'legend-color');
+                        item.append('span');
+                        return item;
+                    },
+                    update => update,
+                    exit => exit.remove()
+                )
+                .each(function(d, i) {
+                    const item = d3.select(this);
+                    item.select('.legend-color').style('background', colorScale(i));
+                    item.select('span').text(d.key);
+                });
+        }
+        
+        // ==================== WORD CLOUD ====================
+        let wordCloudSvg = null;
+        let wordCloudRenderPending = false;
+        
+        function computeFilteredKeywordCounts() {
+            // Check cache
+            if (cachedAggregations.filteredKeywords && 
+                cachedAggregations.filteredKeywordsHash === filteredData.length) {
+                return cachedAggregations.filteredKeywords;
+            }
+            
+            const filteredIndicesSet = new Set(filteredData.map(d => d._id));
+            const keywordCounts = {};
+            
+            // Use pre-computed keyword indices for fast lookup
+            Object.entries(cachedAggregations.keywordCounts || {}).forEach(([keyword, data]) => {
+                let count = 0;
+                for (const idx of data.indices) {
+                    if (filteredIndicesSet.has(idx)) count++;
+                }
+                if (count > 0) keywordCounts[keyword] = count;
+            });
+            
+            cachedAggregations.filteredKeywords = keywordCounts;
+            cachedAggregations.filteredKeywordsHash = filteredData.length;
+            
+            return keywordCounts;
+        }
+        
+        function renderWordCloud() {
+            // Debounce word cloud rendering
+            if (wordCloudRenderPending) return;
+            wordCloudRenderPending = true;
+            
+            // Use requestIdleCallback for low priority
+            const scheduleRender = window.requestIdleCallback || (fn => setTimeout(fn, 50));
+            
+            scheduleRender(() => {
+                wordCloudRenderPending = false;
+                renderWordCloudImmediate();
+            }, { timeout: 200 });
+        }
+        
+        function renderWordCloudImmediate() {
+            const container = document.getElementById('word-cloud');
+            
+            // Get cached/computed keyword counts
+            const keywordCounts = computeFilteredKeywordCounts();
+            
+            // Sort by count descending and take top 35 keywords
+            const words = Object.entries(keywordCounts)
+                .map(([text, count]) => ({ text, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 35);
+            
+            if (words.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No keywords found</p>';
+                wordCloudSvg = null;
+                return;
+            }
+            
+            const width = container.clientWidth || 800;
+            const height = 450; // Slightly taller for better vertical distribution
+            
+            // Font size scale (narrower range, smaller max)
+            const maxCount = d3.max(words, d => d.count);
+            const minCount = d3.min(words, d => d.count);
+            const fontScale = d3.scaleSqrt()
+                .domain([minCount, maxCount])
+                .range([14, 48]); // Narrower range
+            
+            // Seeded random function for deterministic layout
+            function seededRandom(seed) {
+                let s = seed;
+                return function() {
+                    s = (s * 9301 + 49297) % 233280;
+                    return s / 233280;
+                };
+            }
+            const random = seededRandom(42);
+            
+            // Prepare words for d3-cloud
+            const cloudWords = words.map(w => ({
+                text: w.text,
+                size: fontScale(w.count),
+                count: w.count
+            }));
+            
+            // Use d3-cloud for collision-aware layout
+            const layout = d3.layout.cloud()
+                .size([width, height])
+                .words(cloudWords)
+                .padding(8) // Spacing between words
+                .rotate(() => 0) // Horizontal only for readability
+                .font('Arial')
+                .fontSize(d => d.size)
+                .random(random)
+                .on('end', drawCloud);
+            
+            layout.start();
+            
+            function drawCloud(layoutWords) {
+                // Create or reuse SVG
+                if (!wordCloudSvg || container.querySelector('svg') === null) {
+                    container.innerHTML = '';
+                    wordCloudSvg = d3.select('#word-cloud')
+                        .append('svg')
+                        .attr('width', width)
+                        .attr('height', height);
+                    
+                    wordCloudSvg.append('g').attr('class', 'words-g');
+                }
+                
+                wordCloudSvg.attr('width', width).attr('height', height);
+                
+                const g = wordCloudSvg.select('.words-g')
+                    .attr('transform', `translate(${width/2},${height/2})`);
+                
+                // Use d3.join for efficient update
+                g.selectAll('.word')
+                    .data(layoutWords, d => d.text)
+                    .join(
+                        enter => enter.append('text')
+                            .attr('class', 'word')
+                            .attr('text-anchor', 'middle')
+                            .attr('transform', d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
+                            .style('font-size', d => `${d.size}px`)
+                            .style('font-family', 'Arial, sans-serif')
+                            .style('fill', d => d3.interpolateBlues(0.4 + 0.6 * (d.count / maxCount)))
+                            .style('font-weight', d => d.count > maxCount * 0.5 ? 'bold' : 'normal')
+                            .style('cursor', 'pointer')
+                            .text(d => d.text)
+                            .on('mouseover', (event, d) => {
+                                showTooltip(event, `<strong>${d.text}</strong><br>Frequency: ${d.count}`);
+                            })
+                            .on('mouseout', hideTooltip),
+                        update => update
+                            .attr('transform', d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
+                            .style('font-size', d => `${d.size}px`)
+                            .style('fill', d => d3.interpolateBlues(0.4 + 0.6 * (d.count / maxCount)))
+                            .text(d => d.text),
+                        exit => exit.remove()
+                    );
+            }
+        }
+        
+        // ==================== SEMANTIC MAP ====================
+        let semanticZoom;
+        let semanticBrush;
+        let semanticSvg = null;
+        let semanticScales = { x: null, y: null };
+        let semanticQuadtree = null;
+        
+        function renderSemanticMap() {
+            const container = document.getElementById('semantic-map');
+            
+            const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+            const width = container.clientWidth - margin.left - margin.right;
+            const height = 450 - margin.top - margin.bottom;
+            
+            // Compute scales from filteredData (not allData)
+            const xExtent = d3.extent(filteredData, d => d._x);
+            const yExtent = d3.extent(filteredData, d => d._y);
+            
+            // Handle edge case
+            if (!xExtent[0] && !xExtent[1]) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No data to display</p>';
+                semanticSvg = null;
+                return;
+            }
+            
+            semanticScales.x = d3.scaleLinear()
+                .domain([xExtent[0] - 5, xExtent[1] + 5])
+                .range([0, width]);
+            
+            semanticScales.y = d3.scaleLinear()
+                .domain([yExtent[0] - 5, yExtent[1] + 5])
+                .range([height, 0]);
+            
+            // Build quadtree for fast spatial queries
+            semanticQuadtree = d3.quadtree()
+                .x(d => semanticScales.x(d._x))
+                .y(d => semanticScales.y(d._y))
+                .addAll(filteredData);
+            
+            // Create or reuse SVG structure
+            if (!semanticSvg || container.querySelector('svg') === null) {
+                container.innerHTML = '';
+                
+                semanticSvg = d3.select('#semantic-map')
+                    .append('svg')
+                    .attr('width', width + margin.left + margin.right)
+                    .attr('height', height + margin.top + margin.bottom);
+                
+                // Clip path
+                semanticSvg.append('defs').append('clipPath')
+                    .attr('id', 'semantic-clip')
+                    .append('rect')
+                    .attr('width', width)
+                    .attr('height', height);
+                
+                const g = semanticSvg.append('g')
+                    .attr('class', 'main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                g.append('g').attr('class', 'points-g').attr('clip-path', 'url(#semantic-clip)');
+                g.append('g').attr('class', 'brush-g');
+                g.append('g').attr('class', 'x-axis-g').attr('transform', `translate(0,${height})`);
+                g.append('g').attr('class', 'y-axis-g');
+                g.append('g').attr('class', 'legend-g').attr('transform', `translate(${width - 80}, 10)`);
+                
+                // Setup zoom
+                semanticZoom = d3.zoom()
+                    .scaleExtent([0.5, 10])
+                    .on('zoom', (event) => {
+                        semanticSvg.select('.points-g').attr('transform', event.transform);
+                    });
+                
+                semanticSvg.call(semanticZoom);
+            }
+            
+            // Update SVG dimensions
+            semanticSvg
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom);
+            
+            semanticSvg.select('#semantic-clip rect')
+                .attr('width', width)
+                .attr('height', height);
+            
+            const pointsG = semanticSvg.select('.points-g');
+            
+            // Shape generator
+            const getShape = (complexity) => {
+                switch(complexity) {
+                    case 'simple': return d3.symbolCircle;
+                    case 'moderate': return d3.symbolSquare;
+                    case 'complex': return d3.symbolTriangle;
+                    default: return d3.symbolCircle;
+                }
+            };
+            
+            // Use d3.join with filteredData only (not allData!)
+            pointsG.selectAll('.point')
+                .data(filteredData, d => d._id)
+                .join(
+                    enter => enter.append('path')
+                        .attr('class', 'point')
+                        .attr('d', d => d3.symbol().type(getShape(d.analysis?.complexity)).size(80)())
+                        .attr('transform', d => `translate(${semanticScales.x(d._x)},${semanticScales.y(d._y)})`)
+                        .attr('fill', d => sportColors[d.analysis?.primary_sport] || '#999')
+                        .attr('opacity', 0.7)
+                        .on('mouseover', (event, d) => {
+                            const instruction = d.instruction?.length > 100 
+                                ? d.instruction.substring(0, 100) + '...' 
+                                : d.instruction;
+                            showTooltip(event, `
+                                <strong>Instruction:</strong> ${instruction}<br>
+                                <strong>Sport:</strong> ${d.analysis?.primary_sport || 'N/A'}<br>
+                                <strong>Intent:</strong> ${d.analysis?.intent || 'N/A'}<br>
+                                <strong>Reasoning:</strong> ${d.analysis?.reasoning_level || 'N/A'}<br>
+                                <strong>Hallucination Risk:</strong> ${d.analysis?.hallucination_risk || 'N/A'}
+                            `);
+                        })
+                        .on('mouseout', hideTooltip),
+                    update => update
+                        .attr('transform', d => `translate(${semanticScales.x(d._x)},${semanticScales.y(d._y)})`)
+                        .attr('fill', d => sportColors[d.analysis?.primary_sport] || '#999')
+                        .attr('opacity', 0.7)
+                        .classed('faded', false),
+                    exit => exit.remove()
+                );
+            
+            // Setup brush
+            semanticBrush = d3.brush()
+                .extent([[0, 0], [width, height]])
+                .on('end', (event) => {
+                    if (!event.selection) return;
+                    
+                    const [[x0, y0], [x1, y1]] = event.selection;
+                    
+                    // Use quadtree for fast selection (O(log n) vs O(n))
+                    const selected = [];
+                    semanticQuadtree.visit((node, nx0, ny0, nx1, ny1) => {
+                        if (!node.length) {
+                            do {
+                                const d = node.data;
+                                const px = semanticScales.x(d._x);
+                                const py = semanticScales.y(d._y);
+                                if (px >= x0 && px <= x1 && py >= y0 && py <= y1) {
+                                    selected.push(d);
+                                }
+                            } while (node = node.next);
+                        }
+                        return nx0 > x1 || nx1 < x0 || ny0 > y1 || ny1 < y0;
+                    });
+                    
+                    document.getElementById('selection-count').textContent = 
+                        `${selected.length} points selected`;
+                    
+                    const selectedSet = new Set(selected.map(d => d._id));
+                    pointsG.selectAll('.point')
+                        .classed('faded', d => !selectedSet.has(d._id));
+                });
+            
+            semanticSvg.select('.brush-g').call(semanticBrush);
+            
+            // Update axes
+            semanticSvg.select('.x-axis-g')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(semanticScales.x).ticks(5));
+            
+            semanticSvg.select('.y-axis-g')
+                .call(d3.axisLeft(semanticScales.y).ticks(5));
+            
+            // Update legend
+            const legendG = semanticSvg.select('.legend-g')
+                .attr('transform', `translate(${width - 80}, 10)`);
+            
+            const legendData = Object.entries(sportColors);
+            
+            legendG.selectAll('.legend-item')
+                .data(legendData, d => d[0])
+                .join(
+                    enter => {
+                        const lg = enter.append('g')
+                            .attr('class', 'legend-item')
+                            .attr('transform', (d, i) => `translate(0, ${i * 18})`);
+                        lg.append('rect')
+                            .attr('width', 12)
+                            .attr('height', 12)
+                            .attr('fill', d => d[1]);
+                        lg.append('text')
+                            .attr('x', 16)
+                            .attr('y', 10)
+                            .style('font-size', '10px')
+                            .text(d => d[0]);
+                        return lg;
+                    },
+                    update => update.attr('transform', (d, i) => `translate(0, ${i * 18})`),
+                    exit => exit.remove()
+                );
+        }
+        
+        function resetZoom() {
+            if (semanticSvg) {
+                semanticSvg.transition()
+                    .duration(500)
+                    .call(semanticZoom.transform, d3.zoomIdentity);
+            }
+        }
+        
+        function clearBrush() {
+            if (semanticSvg && semanticBrush) {
+                semanticSvg.select('.brush-g').call(semanticBrush.move, null);
+                semanticSvg.selectAll('.point').classed('faded', false);
+                document.getElementById('selection-count').textContent = '';
+            }
+        }
+        
+        // ==================== CORRELATION CHART ====================
+        // ==================== CORRELATION CHART ====================
+        // Cache for correlation data
+        let correlationCache = {
+            xKey: null,
+            yKey: null,
+            dataHash: null,
+            result: null
+        };
+        let correlationSvg = null;
+        let correlationGradientCreated = false;
+        
+        function initCorrelationSelectors() {
+            const xSelect = document.getElementById('x-axis-select');
+            const ySelect = document.getElementById('y-axis-select');
+            const colorSelect = document.getElementById('color-select');
+            
+            categoricalFields.forEach((field, i) => {
+                xSelect.add(new Option(field.label, field.key, i === 0, i === 0));
+                ySelect.add(new Option(field.label, field.key, i === 3, i === 3));
+                colorSelect.add(new Option(field.label, field.key, i === 6, i === 6));
+            });
+        }
+        
+        function renderCorrelationChart() {
+            updateCorrelationChart();
+        }
+        
+        function getCorrelationDataHash() {
+            return filteredData.length + '_' + (filteredData[0]?._id || 0);
+        }
+        
+        function computeCorrelationData(xKey, yKey) {
+            const dataHash = getCorrelationDataHash();
+            
+            // Return cached if valid
+            if (correlationCache.xKey === xKey && 
+                correlationCache.yKey === yKey && 
+                correlationCache.dataHash === dataHash) {
+                return correlationCache.result;
+            }
+            
+            const getVal = (d, key) => d.analysis?.[key];
+            
+            // Single pass aggregation using Map
+            const counts = new Map();
+            const xValuesSet = new Set();
+            const yValuesSet = new Set();
+            
+            for (const d of filteredData) {
+                const xVal = getVal(d, xKey);
+                const yVal = getVal(d, yKey);
+                if (!xVal || !yVal) continue;
+                
+                xValuesSet.add(xVal);
+                yValuesSet.add(yVal);
+                
+                const key = `${xVal}|${yVal}`;
+                counts.set(key, (counts.get(key) || 0) + 1);
+            }
+            
+            const xValues = [...xValuesSet].sort();
+            const yValues = [...yValuesSet].sort();
+            
+            // Build heatmap data
+            const heatmapData = [];
+            let maxCount = 0;
+            
+            for (const xVal of xValues) {
+                for (const yVal of yValues) {
+                    const count = counts.get(`${xVal}|${yVal}`) || 0;
+                    maxCount = Math.max(maxCount, count);
+                    heatmapData.push({ x: xVal, y: yVal, count });
+                }
+            }
+            
+            // Cache result
+            correlationCache = {
+                xKey, yKey, dataHash,
+                result: { heatmapData, xValues, yValues, maxCount }
+            };
+            
+            return correlationCache.result;
+        }
+        
+        function updateCorrelationChart() {
+            const container = document.getElementById('correlation-chart');
+            
+            const xKey = document.getElementById('x-axis-select')?.value || 'primary_sport';
+            const yKey = document.getElementById('y-axis-select')?.value || 'intent';
+            
+            const { heatmapData, xValues, yValues, maxCount } = computeCorrelationData(xKey, yKey);
+            
+            if (xValues.length === 0 || yValues.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No data for selected dimensions</p>';
+                correlationSvg = null;
+                return;
+            }
+            
+            // Dimensions
+            const margin = { top: 30, right: 100, bottom: 120, left: 120 };
+            const cellSize = Math.min(50, (container.clientWidth - margin.left - margin.right) / xValues.length);
+            const width = cellSize * xValues.length;
+            const height = cellSize * yValues.length;
+            
+            // Create or reuse SVG
+            if (!correlationSvg || container.querySelector('svg') === null) {
+                container.innerHTML = '';
+                correlationSvg = d3.select('#correlation-chart')
+                    .append('svg')
+                    .attr('width', width + margin.left + margin.right)
+                    .attr('height', height + margin.top + margin.bottom);
+                
+                correlationSvg.append('g').attr('class', 'main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                correlationSvg.append('g').attr('class', 'x-axis-g')
+                    .attr('transform', `translate(${margin.left},${margin.top + height})`);
+                    
+                correlationSvg.append('g').attr('class', 'y-axis-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                // Create gradient once
+                if (!correlationGradientCreated) {
+                    const defs = correlationSvg.append('defs');
+                    const gradient = defs.append('linearGradient')
+                        .attr('id', 'correlation-gradient')
+                        .attr('x1', '0%').attr('y1', '100%')
+                        .attr('x2', '0%').attr('y2', '0%');
+                    gradient.append('stop').attr('class', 'stop-0').attr('offset', '0%');
+                    gradient.append('stop').attr('class', 'stop-100').attr('offset', '100%');
+                    
+                    // Legend group
+                    correlationSvg.append('g').attr('class', 'legend-g');
+                    correlationGradientCreated = true;
+                }
+            }
+            
+            // Update SVG size
+            correlationSvg
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom);
+            
+            const mainG = correlationSvg.select('.main-g');
+            
+            // Scales
+            const x = d3.scaleBand().domain(xValues).range([0, width]).padding(0.05);
+            const y = d3.scaleBand().domain(yValues).range([0, height]).padding(0.05);
+            const colorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, maxCount]);
+            
+            // Update gradient colors
+            correlationSvg.select('.stop-0').attr('stop-color', colorScale(0));
+            correlationSvg.select('.stop-100').attr('stop-color', colorScale(maxCount));
+            
+            // Update cells using d3.join pattern (no destroy/recreate)
+            mainG.selectAll('.heatmap-cell')
+                .data(heatmapData, d => `${d.x}|${d.y}`)
+                .join(
+                    enter => enter.append('rect')
+                        .attr('class', 'heatmap-cell')
+                        .attr('x', d => x(d.x))
+                        .attr('y', d => y(d.y))
+                        .attr('width', x.bandwidth())
+                        .attr('height', y.bandwidth())
+                        .attr('fill', d => d.count > 0 ? colorScale(d.count) : '#f5f5f5')
+                        .on('mouseover', (event, d) => {
+                            showTooltip(event, `<strong>${d.x}</strong> × <strong>${d.y}</strong><br>Count: ${d.count}`);
+                        })
+                        .on('mouseout', hideTooltip),
+                    update => update
+                        .attr('x', d => x(d.x))
+                        .attr('y', d => y(d.y))
+                        .attr('width', x.bandwidth())
+                        .attr('height', y.bandwidth())
+                        .attr('fill', d => d.count > 0 ? colorScale(d.count) : '#f5f5f5'),
+                    exit => exit.remove()
+                );
+            
+            // Update axes
+            correlationSvg.select('.x-axis-g')
+                .attr('transform', `translate(${margin.left},${margin.top + height})`)
+                .call(d3.axisBottom(x))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .style('text-anchor', 'end')
+                .attr('dx', '-.8em')
+                .attr('dy', '.15em')
+                .style('font-size', '10px');
+            
+            correlationSvg.select('.y-axis-g')
+                .call(d3.axisLeft(y))
+                .selectAll('text')
+                .style('font-size', '10px');
+            
+            // Update legend
+            const legendWidth = 20;
+            const legendHeight = height;
+            const legendG = correlationSvg.select('.legend-g')
+                .attr('transform', `translate(${margin.left + width + 20}, ${margin.top})`);
+            
+            legendG.selectAll('rect.legend-bar')
+                .data([1])
+                .join('rect')
+                .attr('class', 'legend-bar')
+                .attr('width', legendWidth)
+                .attr('height', legendHeight)
+                .style('fill', 'url(#correlation-gradient)');
+            
+            const legendScale = d3.scaleLinear().domain([0, maxCount]).range([legendHeight, 0]);
+            legendG.selectAll('.legend-axis').remove();
+            legendG.append('g')
+                .attr('class', 'legend-axis')
+                .attr('transform', `translate(${legendWidth}, 0)`)
+                .call(d3.axisRight(legendScale).ticks(5));
+            
+            // Also update the scatterplot
+            updateScatterChart(xKey, yKey, xValues, yValues);
+        }
+        
+        // ==================== JITTERED SCATTERPLOT ====================
+        let scatterSvg = null;
+        
+        function updateScatterChart(xKey, yKey, xValues, yValues) {
+            const container = document.getElementById('scatter-chart');
+            const colorKey = document.getElementById('color-select')?.value || 'hallucination_risk';
+            
+            if (!xValues || xValues.length === 0 || !yValues || yValues.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No data for selected dimensions</p>';
+                scatterSvg = null;
+                return;
+            }
+            
+            // Filter data that has valid values for both axes
+            const scatterData = filteredData.filter(d => {
+                const xVal = d.analysis?.[xKey];
+                const yVal = d.analysis?.[yKey];
+                return xVal && yVal && xValues.includes(xVal) && yValues.includes(yVal);
+            });
+            
+            if (scatterData.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No data points to display</p>';
+                scatterSvg = null;
+                return;
+            }
+            
+            // Dimensions
+            const margin = { top: 30, right: 120, bottom: 120, left: 120 };
+            const containerWidth = container.clientWidth || 800;
+            const cellSize = Math.min(50, (containerWidth - margin.left - margin.right) / xValues.length);
+            const width = Math.max(cellSize * xValues.length, 400);
+            const height = Math.max(cellSize * yValues.length, 300);
+            
+            // Create or reuse SVG
+            if (!scatterSvg || container.querySelector('svg') === null) {
+                container.innerHTML = '';
+                scatterSvg = d3.select('#scatter-chart')
+                    .append('svg')
+                    .attr('width', width + margin.left + margin.right)
+                    .attr('height', height + margin.top + margin.bottom);
+                
+                scatterSvg.append('defs').append('clipPath')
+                    .attr('id', 'scatter-clip')
+                    .append('rect');
+                
+                scatterSvg.append('g').attr('class', 'main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                scatterSvg.append('g').attr('class', 'x-axis-g');
+                scatterSvg.append('g').attr('class', 'y-axis-g');
+                scatterSvg.append('g').attr('class', 'legend-g');
+            }
+            
+            // Update SVG size
+            scatterSvg
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom);
+            
+            scatterSvg.select('#scatter-clip rect')
+                .attr('width', width)
+                .attr('height', height);
+            
+            const mainG = scatterSvg.select('.main-g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            // Scales - scaleBand for categorical axes
+            const x = d3.scaleBand().domain(xValues).range([0, width]).padding(0.1);
+            const y = d3.scaleBand().domain(yValues).range([0, height]).padding(0.1);
+            
+            // Jitter range based on bandwidth
+            const jitterX = x.bandwidth() * 0.8;
+            const jitterY = y.bandwidth() * 0.8;
+            
+            // Color scale based on selected color dimension
+            const colorValues = [...new Set(scatterData.map(d => d.analysis?.[colorKey]).filter(Boolean))].sort();
+            const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(colorValues);
+            
+            // Seed-based pseudo-random for consistent jitter
+            const seededRandom = (seed) => {
+                const x = Math.sin(seed * 9999) * 10000;
+                return x - Math.floor(x);
+            };
+            
+            // Compute jittered positions
+            const pointsData = scatterData.map((d, i) => {
+                const xVal = d.analysis?.[xKey];
+                const yVal = d.analysis?.[yKey];
+                const colorVal = d.analysis?.[colorKey] || 'unknown';
+                
+                // Seeded jitter for consistency
+                const jx = (seededRandom(d._id * 2) - 0.5) * jitterX;
+                const jy = (seededRandom(d._id * 3) - 0.5) * jitterY;
+                
+                return {
+                    _id: d._id,
+                    xVal,
+                    yVal,
+                    colorVal,
+                    cx: x(xVal) + x.bandwidth() / 2 + jx,
+                    cy: y(yVal) + y.bandwidth() / 2 + jy,
+                    radius: 5,
+                    instruction: d.instruction || d.prompt || 'No instruction',
+                    intent: d.analysis?.intent || 'Unknown',
+                    risk: d.analysis?.hallucination_risk || 'Unknown'
+                };
+            });
+            
+            // Draw grid lines for better readability
+            mainG.selectAll('.grid-line-x')
+                .data(xValues)
+                .join('line')
+                .attr('class', 'grid-line-x')
+                .attr('x1', d => x(d) + x.bandwidth() / 2)
+                .attr('x2', d => x(d) + x.bandwidth() / 2)
+                .attr('y1', 0)
+                .attr('y2', height)
+                .attr('stroke', '#eee')
+                .attr('stroke-dasharray', '2,2');
+            
+            mainG.selectAll('.grid-line-y')
+                .data(yValues)
+                .join('line')
+                .attr('class', 'grid-line-y')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', d => y(d) + y.bandwidth() / 2)
+                .attr('y2', d => y(d) + y.bandwidth() / 2)
+                .attr('stroke', '#eee')
+                .attr('stroke-dasharray', '2,2');
+            
+            // Draw points with d3.join
+            mainG.selectAll('.scatter-point')
+                .data(pointsData, d => d._id)
+                .join(
+                    enter => enter.append('circle')
+                        .attr('class', 'scatter-point')
+                        .attr('cx', d => d.cx)
+                        .attr('cy', d => d.cy)
+                        .attr('r', 0)
+                        .attr('fill', d => colorScale(d.colorVal))
+                        .attr('fill-opacity', 0.5)
+                        .attr('stroke', d => d3.color(colorScale(d.colorVal)).darker(0.5))
+                        .attr('stroke-width', 0.5)
+                        .style('cursor', 'pointer')
+                        .on('mouseover', (event, d) => {
+                            d3.select(event.target)
+                                .attr('fill-opacity', 0.9)
+                                .attr('stroke-width', 2);
+                            const truncatedInstruction = d.instruction.length > 100 
+                                ? d.instruction.substring(0, 100) + '...' 
+                                : d.instruction;
+                            showTooltip(event, `
+                                <strong>Instruction:</strong> ${truncatedInstruction}<br>
+                                <strong>Intent:</strong> ${d.intent}<br>
+                                <strong>Hallucination Risk:</strong> ${d.risk}<br>
+                                <strong>${colorKey}:</strong> ${d.colorVal}
+                            `);
+                        })
+                        .on('mouseout', (event) => {
+                            d3.select(event.target)
+                                .attr('fill-opacity', 0.5)
+                                .attr('stroke-width', 0.5);
+                            hideTooltip();
+                        })
+                        .call(enter => enter.transition().duration(300)
+                            .attr('r', d => d.radius)),
+                    update => update
+                        .attr('fill', d => colorScale(d.colorVal))
+                        .attr('stroke', d => d3.color(colorScale(d.colorVal)).darker(0.5))
+                        .call(update => update.transition().duration(300)
+                            .attr('cx', d => d.cx)
+                            .attr('cy', d => d.cy)
+                            .attr('r', d => d.radius)),
+                    exit => exit.transition().duration(200)
+                        .attr('r', 0)
+                        .remove()
+                );
+            
+            // Update axes
+            scatterSvg.select('.x-axis-g')
+                .attr('transform', `translate(${margin.left},${margin.top + height})`)
+                .call(d3.axisBottom(x))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .style('text-anchor', 'end')
+                .attr('dx', '-.8em')
+                .attr('dy', '.15em')
+                .style('font-size', '10px');
+            
+            scatterSvg.select('.y-axis-g')
+                .attr('transform', `translate(${margin.left},${margin.top})`)
+                .call(d3.axisLeft(y))
+                .selectAll('text')
+                .style('font-size', '10px');
+            
+            // Color legend
+            const legendG = scatterSvg.select('.legend-g')
+                .attr('transform', `translate(${margin.left + width + 20}, ${margin.top})`);
+            
+            // Clear old legend
+            legendG.selectAll('*').remove();
+            
+            legendG.append('text')
+                .attr('x', 0)
+                .attr('y', 0)
+                .attr('font-size', '11px')
+                .attr('font-weight', 'bold')
+                .text('Color: ' + colorKey);
+            
+            const legendItems = legendG.selectAll('.scatter-legend-item')
+                .data(colorValues)
+                .join('g')
+                .attr('class', 'scatter-legend-item')
+                .attr('transform', (d, i) => `translate(0, ${15 + i * 18})`);
+            
+            legendItems.append('circle')
+                .attr('cx', 6)
+                .attr('cy', 6)
+                .attr('r', 5)
+                .attr('fill', d => colorScale(d))
+                .attr('fill-opacity', 0.6);
+            
+            legendItems.append('text')
+                .attr('x', 16)
+                .attr('y', 10)
+                .attr('font-size', '10px')
+                .text(d => d);
+        }
+        
+        // ==================== RADAR CHART ====================
+        let radarSvg = null;
+        
+        function renderRadarChart() {
+            const container = document.getElementById('radar-chart');
+            
+            // Use pre-computed risk data, filtered by current selection
+            const filteredIndicesSet = new Set(filteredData.map(d => d._id));
+            
+            // Build radar data from cached aggregations
+            const dimensions = ['intent', 'reasoning_level', 'complexity'];
+            const radarData = [];
+            
+            dimensions.forEach(dim => {
+                const dimData = cachedAggregations.riskByDimension[dim];
+                if (!dimData) return;
+                
+                Object.entries(dimData).forEach(([val, stats]) => {
+                    // Count only items in current filter
+                    let filteredTotal = 0;
+                    let filteredHigh = 0;
+                    
+                    for (const idx of stats.indices) {
+                        if (filteredIndicesSet.has(idx)) {
+                            filteredTotal++;
+                            if (allData[idx].analysis?.hallucination_risk === 'high') {
+                                filteredHigh++;
+                            }
+                        }
+                    }
+                    
+                    if (filteredTotal > 0) {
+                        radarData.push({
+                            dimension: dim,
+                            value: val,
+                            ratio: filteredHigh / filteredTotal,
+                            count: filteredHigh,
+                            total: filteredTotal
+                        });
+                    }
+                });
+            });
+            
+            // Sort and take top values for each dimension
+            const topPerDim = {};
+            dimensions.forEach(dim => {
+                topPerDim[dim] = radarData
+                    .filter(d => d.dimension === dim)
+                    .sort((a, b) => b.ratio - a.ratio)
+                    .slice(0, 5);
+            });
+            
+            // Flatten for radar
+            const radarPoints = [];
+            dimensions.forEach(dim => {
+                (topPerDim[dim] || []).forEach(d => {
+                    radarPoints.push({ label: `${d.value}`, ...d });
+                });
+            });
+            
+            if (radarPoints.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No high-risk prompts in filtered data</p>';
+                radarSvg = null;
+                return;
+            }
+            
+            const width = container.clientWidth;
+            // Increased height for a larger radar visualization
+            const height = 600;
+            // Reduce the inner margin so the radius can be larger
+            const radius = Math.min(width, height) / 2 - 40;
+            
+            // Create or reuse SVG
+            if (!radarSvg || container.querySelector('svg') === null) {
+                container.innerHTML = '';
+                radarSvg = d3.select('#radar-chart')
+                    .append('svg')
+                    .attr('width', width)
+                    .attr('height', height);
+                
+                radarSvg.append('g')
+                    .attr('class', 'radar-main')
+                    .attr('transform', `translate(${width/2},${height/2})`);
+            }
+            
+            radarSvg.attr('width', width).attr('height', height);
+            const mainG = radarSvg.select('.radar-main')
+                .attr('transform', `translate(${width/2},${height/2})`);
+            
+            // Clear and redraw (radar is complex, full redraw is cleaner)
+            mainG.selectAll('*').remove();
+            
+            const angleSlice = (2 * Math.PI) / radarPoints.length;
+            const rScale = d3.scaleLinear().domain([0, 1]).range([0, radius]);
+            
+            // Draw grid circles
+            const levels = 5;
+            for (let i = 1; i <= levels; i++) {
+                mainG.append('circle')
+                    .attr('r', radius * i / levels)
+                    .attr('fill', 'none')
+                    .attr('stroke', '#ddd')
+                    .attr('stroke-dasharray', '3,3');
+            }
+            
+            // Draw axis lines and labels
+            radarPoints.forEach((d, i) => {
+                const angle = angleSlice * i - Math.PI / 2;
+                mainG.append('line')
+                    .attr('x1', 0).attr('y1', 0)
+                    .attr('x2', radius * Math.cos(angle))
+                    .attr('y2', radius * Math.sin(angle))
+                    .attr('stroke', '#ddd');
+                
+                const labelRadius = radius + 25;
+                mainG.append('text')
+                    .attr('x', labelRadius * Math.cos(angle))
+                    .attr('y', labelRadius * Math.sin(angle))
+                        .attr('text-anchor', 'middle')
+                        .attr('dominant-baseline', 'middle')
+                        .style('font-size', '12px')
+                    .text(d.label);
+            });
+            
+            // Draw radar area
+            const line = d3.lineRadial()
+                .radius(d => rScale(d.ratio))
+                .angle((d, i) => i * angleSlice)
+                .curve(d3.curveLinearClosed);
+            
+            mainG.append('path')
+                .datum(radarPoints)
+                .attr('class', 'radar-area')
+                .attr('d', line)
+                .attr('fill', '#e74c3c')
+                .attr('stroke', '#c0392b')
+                .attr('fill-opacity', 0.4);
+            
+            // Draw points
+            radarPoints.forEach((d, i) => {
+                const angle = angleSlice * i - Math.PI / 2;
+                const px = rScale(d.ratio) * Math.cos(angle);
+                const py = rScale(d.ratio) * Math.sin(angle);
+                
+                mainG.append('circle')
+                    .attr('cx', px)
+                    .attr('cy', py)
+                    // slightly larger points for better visibility
+                    .attr('r', 7)
+                    .attr('fill', '#e74c3c')
+                    .attr('stroke', 'white')
+                    .attr('stroke-width', 2)
+                    .on('mouseover', (event) => {
+                        showTooltip(event, `
+                            <strong>${d.label}</strong> (${d.dimension})<br>
+                            High Risk Ratio: ${(d.ratio * 100).toFixed(1)}%<br>
+                            High Risk: ${d.count} / ${d.total}
+                        `);
+                    })
+                    .on('mouseout', hideTooltip);
+            });
+            
+            // Center label
+            mainG.append('text')
+                .attr('text-anchor', 'middle')
+                // move the center title further up to keep spacing on increased radar
+                .attr('y', -radius - 60)
+                .style('font-size', '16px')
+                .style('font-weight', 'bold')
+                .text('High Hallucination Risk Distribution');
+        }
+        
+        // ==================== SANKEY DIAGRAM ====================
+        let sankeySvg = null;
+        let sankeyTopologyCache = null;
+        
+        function computeSankeyTopology() {
+            // Build nodes and links from filtered data
+            const intents = [...new Set(filteredData.map(d => d.analysis?.intent).filter(Boolean))];
+            const reasonings = [...new Set(filteredData.map(d => d.analysis?.reasoning_level).filter(Boolean))];
+            const risks = [...new Set(filteredData.map(d => d.analysis?.hallucination_risk).filter(Boolean))];
+            
+            if (intents.length === 0 || reasonings.length === 0 || risks.length === 0) {
+                return null;
+            }
+            
+            // Create node index
+            const nodes = [];
+            const nodeIndex = {};
+            
+            intents.forEach(i => {
+                nodeIndex[`intent_${i}`] = nodes.length;
+                nodes.push({ name: i, category: 'intent' });
+            });
+            
+            reasonings.forEach(r => {
+                nodeIndex[`reasoning_${r}`] = nodes.length;
+                nodes.push({ name: r, category: 'reasoning' });
+            });
+            
+            risks.forEach(r => {
+                nodeIndex[`risk_${r}`] = nodes.length;
+                nodes.push({ name: r, category: 'risk' });
+            });
+            
+            // Build links by intent for continuous coloring
+            const linkCounts = new Map();
+            
+            for (const d of filteredData) {
+                const intent = d.analysis?.intent;
+                const reasoning = d.analysis?.reasoning_level;
+                const risk = d.analysis?.hallucination_risk;
+                
+                // Track intent in the key for both hops
+                if (intent && reasoning) {
+                    const key1 = `intent_${intent}|reasoning_${reasoning}|${intent}`;
+                    linkCounts.set(key1, (linkCounts.get(key1) || 0) + 1);
+                }
+                
+                if (intent && reasoning && risk) {
+                    const key2 = `reasoning_${reasoning}|risk_${risk}|${intent}`;
+                    linkCounts.set(key2, (linkCounts.get(key2) || 0) + 1);
+                }
+            }
+            
+            const links = [];
+            for (const [key, value] of linkCounts) {
+                const [source, target, intentName] = key.split('|');
+                if (nodeIndex[source] !== undefined && nodeIndex[target] !== undefined) {
+                    links.push({
+                        source: nodeIndex[source],
+                        target: nodeIndex[target],
+                        value,
+                        intent: intentName
+                    });
+                }
+            }
+            
+            return { nodes, nodeIndex, links };
+        }
+        
+        function renderSankeyDiagram() {
+            const container = document.getElementById('sankey-chart');
+            
+            const topology = computeSankeyTopology();
+            
+            if (!topology) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">Insufficient data for Sankey diagram</p>';
+                sankeySvg = null;
+                return;
+            }
+            
+            const { nodes, links } = topology;
+            
+            // Dimensions - dynamic height
+            const margin = { top: 20, right: 150, bottom: 60, left: 150 }; // Increased bottom margin
+            const containerWidth = container.clientWidth || 800;
+            const width = containerWidth - margin.left - margin.right;
+            
+            // 1. Perform layout first to determine total required height
+            const nodeWidth = 20;
+            const columnWidth = width / 3;
+            const sizingGenericHeight = 500; // Base height for proportional scaling calculation
+            let maxContentHeight = 0;
+            
+            // Position nodes and calculate dynamic height
+            const categories = ['intent', 'reasoning', 'risk'];
+            categories.forEach((cat, colIdx) => {
+                const catNodes = nodes.filter(n => n.category === cat);
+                const totalValue = d3.sum(catNodes.map(n => {
+                    const idx = nodes.indexOf(n);
+                    return d3.sum(links.filter(l => l.source === idx || l.target === idx).map(l => l.value));
+                }));
+                
+                let y = 0;
+                catNodes.forEach(n => {
+                    const idx = nodes.indexOf(n);
+                    const nodeValue = d3.sum(links.filter(l => l.source === idx || l.target === idx).map(l => l.value));
+                    
+                    // Scale node height but min 15px. Use sizingGenericHeight for ratio calculation.
+                    const nodeHeight = Math.max(15, (nodeValue / Math.max(totalValue, 1)) * (sizingGenericHeight - 50));
+                    
+                    n.x = colIdx * columnWidth;
+                    n.y = y;
+                    n.height = nodeHeight;
+                    n.value = nodeValue;
+                    
+                    y += nodeHeight + 15; // Gap between nodes
+                });
+                
+                if (y > maxContentHeight) maxContentHeight = y;
+            });
+            
+            // Final SVG Height is max content height found + padding
+            const height = Math.max(sizingGenericHeight, maxContentHeight);
+
+            // 2. Create or reuse SVG with calculated height
+            if (!sankeySvg || container.querySelector('svg') === null) {
+                container.innerHTML = '';
+                container.style.minHeight = '500px'; 
+                container.style.overflow = 'visible'; // Allow overflow if needed
+                
+                sankeySvg = d3.select('#sankey-chart')
+                    .append('svg')
+                    .attr('width', width + margin.left + margin.right)
+                    .attr('height', height + margin.top + margin.bottom);
+                
+                sankeySvg.append('g').attr('class', 'main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+            }
+            
+            sankeySvg
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom);
+            
+            const mainG = sankeySvg.select('.main-g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            // Clear previous content
+            mainG.selectAll('*').remove();
+            
+            // Intent color scale (Okabe-Ito)
+            const intentColor = d3.scaleOrdinal([
+                "#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442"
+            ]);
+            
+            // Draw links
+            links.sort((a, b) => b.value - a.value);
+
+            links.forEach(link => {
+                const source = nodes[link.source];
+                const target = nodes[link.target];
+                
+                if (!source || !target) return;
+                
+                const sourceY = source.y + source.height / 2;
+                const targetY = target.y + target.height / 2;
+                
+                const path = d3.linkHorizontal()({
+                    source: [source.x + nodeWidth, sourceY],
+                    target: [target.x, targetY]
+                });
+                
+                mainG.append('path')
+                    .datum(link) // Bind data for selection access
+                    .attr('class', 'sankey-link')
+                    .attr('d', path)
+                    .attr('stroke', intentColor(link.intent))
+                    .attr('stroke-width', Math.max(1, link.value / 2))
+                    .attr('fill', 'none')
+                    .style('opacity', 0.4)
+                    .on('mouseover', function(event, d) {
+                        const activeIntent = d.intent;
+
+                        // Highlight full path (all links with same intent)
+                        d3.selectAll('.sankey-link')
+                            .transition().duration(200)
+                            .style('opacity', l => l.intent === activeIntent ? 0.9 : 0.1)
+                            .attr('stroke-width', l => l.intent === activeIntent ? Math.max(2, l.value / 2 * 1.5) : Math.max(1, l.value / 2));
+                        
+                        // Find connected nodes for this intent
+                        const activeNodes = new Set();
+                        links.forEach(l => {
+                            if (l.intent === activeIntent) {
+                                activeNodes.add(l.source);
+                                activeNodes.add(l.target);
+                            }
+                        });
+
+                        // Highlight connected nodes, fade others
+                        d3.selectAll('.sankey-node')
+                            .transition().duration(200)
+                            .style('opacity', n => activeNodes.has(nodes.indexOf(n)) ? 1 : 0.2);
+
+                        showTooltip(event, `
+                            <strong>Intent: ${link.intent}</strong><br>
+                            ${source.name} → ${target.name}<br>
+                            Count: ${link.value}
+                        `);
+                    })
+                    .on('mouseout', function() {
+                        // Restore defaults
+                        d3.selectAll('.sankey-link')
+                            .transition().duration(200)
+                            .style('opacity', 0.4)
+                            .attr('stroke-width', l => Math.max(1, l.value / 2));
+                        
+                        d3.selectAll('.sankey-node')
+                            .transition().duration(200)
+                            .style('opacity', 1);
+
+                        hideTooltip();
+                    });
+            });
+            
+            // Draw nodes
+            nodes.forEach(d => {
+                if (d.height === undefined) return;
+                
+                const nodeG = mainG.append('g')
+                    .datum(d) // Bind data for selection access
+                    .attr('class', 'sankey-node');
+                
+                nodeG.append('rect')
+                    .attr('x', d.x)
+                    .attr('y', d.y)
+                    .attr('width', nodeWidth)
+                    .attr('height', d.height)
+                    .attr('fill', '#d0d0d0') // Neutral gray
+                    .on('mouseover', (event) => {
+                        showTooltip(event, `<strong>${d.name}</strong><br>Total flow: ${d.value}`);
+                    })
+                    .on('mouseout', hideTooltip);
+                
+                nodeG.append('text')
+                    .attr('x', d.category === 'risk' ? d.x + nodeWidth + 5 : d.x - 5)
+                    .attr('y', d.y + d.height / 2)
+                    .attr('text-anchor', d.category === 'risk' ? 'start' : 'end')
+                    .attr('dominant-baseline', 'middle')
+                    .style('font-size', '11px')
+                    .text(d.name);
+            });
+            
+            // Column labels
+            mainG.append('text').attr('x', 0).attr('y', -5).style('font-weight', 'bold').style('font-size', '12px').text('Intent');
+            mainG.append('text').attr('x', columnWidth).attr('y', -5).style('font-weight', 'bold').style('font-size', '12px').text('Reasoning Level');
+            mainG.append('text').attr('x', columnWidth * 2).attr('y', -5).style('font-weight', 'bold').style('font-size', '12px').text('Hallucination Risk');
+        }
+        
+        // ==================== MODEL ANALYSIS ====================
+        function renderModelAnalysis() {
+            const container = document.getElementById('model-charts');
+            container.innerHTML = '';
+            
+            // Use pre-computed model ratings with filtered indices
+            const filteredIndicesSet = new Set(filteredData.map(d => d._id));
+            
+            // Calculate stats from cached data
+            const modelStats = [];
+            
+            Object.entries(cachedAggregations.modelRatings || {}).forEach(([model, ratings]) => {
+                // Filter ratings to only include filtered data
+                const filteredHelpfulness = ratings.helpfulness
+                    .filter(r => filteredIndicesSet.has(r.idx))
+                    .map(r => r.val);
+                const filteredHonesty = ratings.honesty
+                    .filter(r => filteredIndicesSet.has(r.idx))
+                    .map(r => r.val);
+                const filteredTruthfulness = ratings.truthfulness
+                    .filter(r => filteredIndicesSet.has(r.idx))
+                    .map(r => r.val);
+                const filteredOverall = ratings.overall
+                    .filter(r => filteredIndicesSet.has(r.idx))
+                    .map(r => r.val);
+                
+                const count = filteredHelpfulness.length || filteredOverall.length;
+                if (count > 0) {
+                    modelStats.push({
+                        model,
+                        helpfulness: filteredHelpfulness.length ? d3.mean(filteredHelpfulness) : null,
+                        honesty: filteredHonesty.length ? d3.mean(filteredHonesty) : null,
+                        truthfulness: filteredTruthfulness.length ? d3.mean(filteredTruthfulness) : null,
+                        overall: filteredOverall.length ? d3.mean(filteredOverall) : null,
+                        count
+                    });
+                }
+            });
+            
+            modelStats.sort((a, b) => (b.helpfulness || 0) - (a.helpfulness || 0));
+            
+            if (modelStats.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No model rating data available</p>';
+                return;
+            }
+            
+            // Helpfulness chart
+            const helpDiv = document.createElement('div');
+            helpDiv.className = 'chart-container';
+            helpDiv.innerHTML = '<h4>Average Helpfulness Rating by Model</h4><div id="model-helpfulness"></div>';
+            container.appendChild(helpDiv);
+            renderModelBarChart('model-helpfulness', modelStats, 'helpfulness', 'Helpfulness');
+            
+            // Overall score chart
+            const overallDiv = document.createElement('div');
+            overallDiv.className = 'chart-container';
+            overallDiv.innerHTML = '<h4>Average Overall Score by Model</h4><div id="model-overall"></div>';
+            container.appendChild(overallDiv);
+            renderModelBarChart('model-overall', modelStats, 'overall', 'Overall Score');
+            
+            // Response count chart
+            const countDiv = document.createElement('div');
+            countDiv.className = 'chart-container';
+            countDiv.innerHTML = '<h4>Number of Responses by Model</h4><div id="model-count"></div>';
+            container.appendChild(countDiv);
+            renderModelBarChart('model-count', modelStats, 'count', 'Response Count');
+        }
+        
+        function renderModelBarChart(containerId, data, metric, label) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            const filteredData = data.filter(d => d[metric] !== null && d[metric] !== undefined);
+            
+            if (filteredData.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#999;">No data available</p>';
+                return;
+            }
+            
+            // Dynamic margin logic
+            const maxLabelLen = d3.max(filteredData, d => String(d.model).length) || 10;
+            const bottomMargin = Math.min(150, Math.max(80, maxLabelLen * 5));
+            
+            const margin = { top: 10, right: 30, bottom: bottomMargin, left: 50 };
+            const containerWidth = container.clientWidth || 300;
+            const width = Math.max(0, containerWidth - margin.left - margin.right);
+            const height = 220 - margin.top - margin.bottom;
+            
+            // Check for existing SVG or create new
+            let svg = d3.select(`#${containerId}`).select('svg');
+            let g, barsG;
+            
+            if (svg.empty()) {
+                container.innerHTML = '';
+                svg = d3.select(`#${containerId}`)
+                    .append('svg')
+                    .attr('width', containerWidth)
+                    .attr('height', height + margin.top + margin.bottom);
+                
+                // Add clip path
+                svg.append('defs').append('clipPath')
+                    .attr('id', `clip-${containerId}`)
+                    .append('rect')
+                    .attr('width', width)
+                    .attr('height', height);
+                
+                g = svg.append('g')
+                    .attr('class', 'main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                g.append('g').attr('class', 'x-axis');
+                g.append('g').attr('class', 'y-axis');
+                barsG = g.append('g').attr('class', 'bars-g')
+                    .attr('clip-path', `url(#clip-${containerId})`);
+            } else {
+                svg.attr('width', containerWidth)
+                   .attr('height', height + margin.top + margin.bottom);
+                   
+                svg.select(`#clip-${containerId} rect`)
+                    .attr('width', width)
+                    .attr('height', height);
+                
+                g = svg.select('.main-g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                barsG = g.select('.bars-g');
+                if (barsG.empty()) {
+                    barsG = g.append('g').attr('class', 'bars-g').attr('clip-path', `url(#clip-${containerId})`);
+                }
+            }
+            
+            const x = d3.scaleBand()
+                .domain(filteredData.map(d => d.model))
+                .range([0, width])
+                .padding(0.2);
+            
+            const maxVal = d3.max(filteredData, d => d[metric]);
+            const y = d3.scaleLinear()
+                .domain([0, maxVal * 1.1])
+                .nice()
+                .range([height, 0]);
+            
+            const colorScale = d3.scaleOrdinal(d3.schemeSet2);
+            
+            barsG.selectAll('.bar')
+                .data(filteredData, d => d.model)
+                .join(
+                    enter => enter.append('rect')
+                        .attr('class', 'bar')
+                        .attr('x', d => x(d.model))
+                        .attr('width', x.bandwidth())
+                        .attr('y', height)
+                        .attr('height', 0)
+                        .attr('fill', (d, i) => colorScale(i))
+                        .on('mouseover', (event, d) => {
+                            showTooltip(event, `<strong>${d.model}</strong><br>${label}: ${d[metric].toFixed(2)}<br>Responses: ${d.count}`);
+                        })
+                        .on('mouseout', hideTooltip)
+                        .call(enter => enter.transition().duration(500)
+                            .attr('y', d => y(d[metric]))
+                            .attr('height', d => height - y(d[metric]))),
+                    update => update
+                        .attr('x', d => x(d.model))
+                        .attr('width', x.bandwidth())
+                        .attr('fill', (d, i) => colorScale(i))
+                        .call(update => update.transition().duration(500)
+                            .attr('y', d => y(d[metric]))
+                            .attr('height', d => height - y(d[metric]))),
+                    exit => exit.transition().duration(200).attr('height', 0).attr('y', height).remove()
+                );
+            
+            g.select('.x-axis')
+                .attr('class', 'axis x-axis')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .style('text-anchor', 'end')
+                .attr('dx', '-.8em')
+                .attr('dy', '.15em')
+                .style('font-size', '9px');
+            
+            g.select('.y-axis')
+                .attr('class', 'axis y-axis')
+                .call(d3.axisLeft(y).ticks(5));
+        }
+        
+        // ==================== INITIALIZATION ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initCorrelationSelectors();
+            loadData();
+        });
+        
+        // Handle window resize with proper debouncing
+        let resizeTimeout;
+        let lastResizeWidth = window.innerWidth;
+        
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            
+            // 500ms debounce for resize
+            resizeTimeout = setTimeout(() => {
+                // Only re-render if width actually changed significantly (>50px)
+                const widthDelta = Math.abs(window.innerWidth - lastResizeWidth);
+                if (widthDelta > 50 && filteredData.length > 0) {
+                    lastResizeWidth = window.innerWidth;
+                    
+                    // Invalidate SVG caches to force dimension recalculation
+                    correlationSvg = null;
+                    correlationGradientCreated = false;
+                    radarSvg = null;
+                    wordCloudSvg = null;
+                    semanticSvg = null;
+                    
+                    updateAllVisualizations();
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>
